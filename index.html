@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PDF Aracı</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root{--bg:#f6f5f2;--surf:#fff;--ink:#1c1b19;--mute:#6b6862;--line:#e2dfd8;--acc:#c2410c;--acc-ink:#fff;--soft:#fdf0e8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171614;--surf:#22211e;--ink:#f0eee9;--mute:#a09c93;--line:#34322e;--acc:#f97316;--acc-ink:#1a1008;--soft:#2e2018;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#171614;--surf:#22211e;--ink:#f0eee9;--mute:#a09c93;--line:#34322e;--acc:#f97316;--acc-ink:#1a1008;--soft:#2e2018;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Inter",system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 16px;background:var(--surf);border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+h1{font-size:17px;margin:0 8px 0 0;letter-spacing:-.01em}
+button,.btn{font:inherit;font-size:14px;padding:7px 12px;border:1px solid var(--line);background:var(--surf);color:var(--ink);border-radius:8px;cursor:pointer}
+button:hover,.btn:hover{border-color:var(--acc)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.pri{background:var(--acc);color:var(--acc-ink);border-color:var(--acc);font-weight:600}
+.on{background:var(--soft);border-color:var(--acc);color:var(--acc)}
+.sp{flex:1}
+input[type=number]{width:60px;font:inherit;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--surf);color:var(--ink)}
+#panel{display:none;padding:14px 16px;background:var(--soft);border-bottom:1px solid var(--line)}
+#panel.show{display:block}
+#panel label{display:block;margin:4px 0;cursor:pointer}
+#panel small{color:var(--mute)}
+#res{margin-top:10px;font-weight:600}
+main{display:flex;gap:0;height:calc(100vh - 62px)}
+#side{width:190px;overflow-y:auto;padding:10px;border-right:1px solid var(--line);background:var(--surf);flex-shrink:0}
+.th{border:2px solid var(--line);border-radius:8px;padding:6px;margin-bottom:10px;background:var(--bg);cursor:pointer}
+.th.sel{border-color:var(--acc)}
+.th canvas{width:100%;display:block;background:#fff;border-radius:3px;min-height:60px}
+.th .r{display:flex;justify-content:space-between;align-items:center;margin-top:5px;font-size:12px;color:var(--mute)}
+.th .r div{display:flex;gap:2px}
+.th .r button{padding:2px 6px;font-size:13px;border-radius:5px}
+#view{flex:1;overflow:auto;padding:16px;display:flex;justify-content:center;align-items:flex-start}
+#wrap{position:relative;box-shadow:0 2px 14px rgba(0,0,0,.18);background:#fff;line-height:1}
+#wrap.txt{cursor:crosshair}
+#wrap canvas{display:block}
+#layer{position:absolute;inset:0}
+.tx{position:absolute;color:#000;white-space:nowrap;font-family:Arial,Helvetica,sans-serif;cursor:default;padding:0;line-height:1}
+.tx:hover{outline:1px dashed var(--acc)}
+.ed{position:absolute;white-space:pre;font-family:Arial,Helvetica,sans-serif;color:transparent;caret-color:#000;outline:none;cursor:text;padding:0}.ed:hover{outline:1px dashed var(--acc)}.ed:focus{outline:1px solid var(--acc)}
+.ti{position:absolute;font-family:Arial,Helvetica,sans-serif;border:1px solid var(--acc);outline:none;padding:0 2px;background:#fffbe8;color:#000;min-width:80px}
+#empty{margin:auto;text-align:center;max-width:380px;padding:30px;border:2px dashed var(--line);border-radius:14px;color:var(--mute)}
+#empty.drag{border-color:var(--acc);background:var(--soft)}
+#empty b{color:var(--ink);font-size:18px;display:block;margin-bottom:6px}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20;max-width:90vw}
+#toast.show{opacity:1}
+@media(max-width:700px){main{flex-direction:column;height:auto}#side{width:100%;height:150px;display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--line)}.th{min-width:100px;width:100px;margin:0}.th .r div{display:none}#view{height:70vh}}
+</style>
+</head>
+<body>
+<header>
+  <h1>PDF Aracı</h1>
+  <label class="btn pri">PDF aç<input id="f1" type="file" accept="application/pdf" hidden></label>
+  <label class="btn" id="addL">PDF ekle<input id="f2" type="file" accept="application/pdf" multiple hidden></label>
+  <button id="ebtn" disabled title="PDF’deki mevcut yazıları değiştirin">✎ Metni düzenle</button>
+  <button id="tbtn" disabled>T Metin ekle</button>
+  <span><input id="fs" type="number" value="14" min="6" max="96" title="Yazı boyutu (pt)"> pt</span>
+  <span class="sp"></span>
+  <button id="cbtn" disabled>Sıkıştır</button>
+  <button id="sbtn" class="pri" disabled>Kaydet</button>
+</header>
+<div id="panel">
+  <b>Sıkıştırma düzeyi</b>
+  <label><input type="radio" name="lv" value="mid" checked> Dengeli — görüntü tabanlı, ~110 dpi <small>(metin seçilemez hale gelir)</small></label>
+  <label><input type="radio" name="lv" value="high"> Maksimum — ~72 dpi, en küçük boyut</label>
+  <label><input type="radio" name="lv" value="low"> Hafif — ~150 dpi, yüksek kalite</label>
+  <label><input type="radio" name="lv" value="struct"> Yapısal — metin korunur, kazanç sınırlı</label>
+  <button id="go" class="pri" style="margin-top:8px">Sıkıştırmayı başlat</button>
+  <button id="dl" style="margin-top:8px;display:none">Sıkıştırılmış PDF’i indir</button>
+  <div id="res"></div>
+</div>
+<main>
+  <div id="side"></div>
+  <div id="view">
+    <div id="empty"><b>Bir PDF seçin ya da buraya bırakın</b>Sayfaları döndürün, silin, sıralayın, metin ekleyin, birleştirin ve sıkıştırın. Dosyalar tarayıcınızdan çıkmaz.</div>
+  </div>
+</main>
+<div id="toast"></div>
+<script>
+const {PDFDocument,degrees}=PDFLib;
+pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const $=s=>document.querySelector(s);
+let sources=[],pages=[],cur=0,tmode=false,fname="belge.pdf",result=null;
+const toast=m=>{const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove("show"),2600)};
+const fmt=n=>n>1048576?(n/1048576).toFixed(2)+" MB":Math.round(n/1024)+" KB";
+
+async function addPdf(file){
+  const bytes=new Uint8Array(await file.arrayBuffer());
+  const pj=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
+  const lib=await PDFDocument.load(bytes,{ignoreEncryption:true});
+  const s=sources.push({bytes,pj,lib,size:bytes.length})-1;
+  for(let i=0;i<pj.numPages;i++)pages.push({s,i,rot:0,texts:[],ed:{}});
+}
+async function openFile(file,append){
+  if(!file)return;
+  try{
+    if(!append){sources=[];pages=[];cur=0;fname=file.name;result=null;$("#res").textContent="";$("#dl").style.display="none"}
+    await addPdf(file);
+    ["ebtn","tbtn","cbtn","sbtn"].forEach(i=>$("#"+i).disabled=false);
+    if(!append&&!tmode){tmode="edit";$("#ebtn").classList.add("on")}
+    drawSide();show(append?pages.length-1:0);
+  }catch(e){toast("PDF açılamadı: "+(e.message||e))}
+}
+$("#f1").onchange=e=>{openFile(e.target.files[0],false);e.target.value=""};
+$("#f2").onchange=async e=>{
+  if(!pages.length){openFile(e.target.files[0],false);return}
+  for(const f of e.target.files)await openFile(f,true);e.target.value=""};
+const ve=$("#view");
+ve.ondragover=e=>{e.preventDefault();$("#empty")?.classList.add("drag")};
+ve.ondragleave=()=>$("#empty")?.classList.remove("drag");
+ve.ondrop=e=>{e.preventDefault();[...e.dataTransfer.files].filter(f=>/pdf/i.test(f.type)).forEach((f,i)=>openFile(f,pages.length>0||i>0))};
+
+async function render(p,canvas,scale){
+  const pg=await sources[p.s].pj.getPage(p.i+1);
+  const vp=pg.getViewport({scale,rotation:(pg.rotate+p.rot)%360});
+  const dpr=1;canvas.width=Math.floor(vp.width);canvas.height=Math.floor(vp.height);
+  await pg.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
+  return vp;
+}
+const io=new IntersectionObserver(es=>es.forEach(en=>{if(en.isIntersecting){io.unobserve(en.target);const p=pages[+en.target.dataset.k];if(p)render(p,en.target,.3)}}),{root:null,rootMargin:"200px"});
+function drawSide(){
+  const sd=$("#side");sd.innerHTML="";
+  pages.forEach((p,k)=>{
+    const d=document.createElement("div");d.className="th"+(k===cur?" sel":"");
+    d.innerHTML='<canvas data-k="'+k+'"></canvas><div class="r"><span>'+(k+1)+'</span><div><button data-a="l" title="Sola döndür">↺</button><button data-a="r" title="Sağa döndür">↻</button><button data-a="u" title="Yukarı">↑</button><button data-a="d" title="Aşağı">↓</button><button data-a="x" title="Sil">✕</button></div></div>';
+    d.onclick=e=>{const a=e.target.dataset.a;if(!a){show(k);return}act(a,k)};
+    sd.appendChild(d);io.observe(d.querySelector("canvas"));
+  });
+}
+function act(a,k){
+  const p=pages[k];
+  if(a==="l")p.rot=(p.rot+270)%360;
+  if(a==="r")p.rot=(p.rot+90)%360;
+  if(a==="u"&&k>0){[pages[k-1],pages[k]]=[pages[k],pages[k-1]];cur=k-1}
+  if(a==="d"&&k<pages.length-1){[pages[k+1],pages[k]]=[pages[k],pages[k+1]];cur=k+1}
+  if(a==="x"){if(pages.length<2){toast("Son sayfa silinemez");return}pages.splice(k,1);cur=Math.min(k,pages.length-1)}
+  if(a==="l"||a==="r")cur=k;
+  result=null;$("#dl").style.display="none";
+  drawSide();show(cur);
+}
+async function show(k){
+  cur=k;document.querySelectorAll(".th").forEach((t,i)=>t.classList.toggle("sel",i===k));
+  const p=pages[k];if(!p)return;
+  const pg=await sources[p.s].pj.getPage(p.i+1);
+  const base=pg.getViewport({scale:1,rotation:(pg.rotate+p.rot)%360});
+  const avail=Math.min(ve.clientWidth-32,900);const scale=Math.max(.3,avail/base.width);
+  ve.innerHTML='<div id="wrap"><canvas></canvas><div id="layer"></div></div>';
+  const w=$("#wrap");w.classList.toggle("txt",tmode==="add");
+  await render(p,w.querySelector("canvas"),scale*(window.devicePixelRatio>1?1.5:1));
+  w.querySelector("canvas").style.width=base.width*scale+"px";
+  w.querySelector("canvas").style.height=base.height*scale+"px";
+  const L=$("#layer");L.dataset.scale=scale;
+  p.texts.forEach((t,ti)=>{
+    const s=document.createElement("span");s.className="tx";s.textContent=t.text;
+    s.style.left=t.fx*100+"%";s.style.top=t.fy*100+"%";s.style.fontSize=t.size*scale+"px";s.title="Silmek için çift tıklayın";
+    s.ondblclick=ev=>{ev.stopPropagation();p.texts.splice(ti,1);show(k)};L.appendChild(s)});
+  if(tmode==="edit")await overlay(p,pg,L,w.querySelector("canvas"),scale);
+  w.onclick=ev=>{
+    if(tmode!=="add"||ev.target.classList.contains("tx")||ev.target.tagName==="INPUT")return;
+    const r=w.getBoundingClientRect();const fx=(ev.clientX-r.left)/r.width,fy=(ev.clientY-r.top)/r.height;
+    const size=+$("#fs").value||14;
+    const inp=document.createElement("input");inp.className="ti";inp.style.left=fx*100+"%";inp.style.top=fy*100+"%";inp.style.fontSize=size*scale+"px";inp.placeholder="Metin…";
+    let done=false;const fin=ok=>{if(done)return;done=true;const v=inp.value.trim();if(ok&&v){p.texts.push({fx,fy,size,text:v});result=null}show(k)};
+    inp.onkeydown=e=>{if(e.key==="Enter")fin(true);if(e.key==="Escape")fin(false)};inp.onblur=()=>fin(true);
+    L.appendChild(inp);setTimeout(()=>inp.focus(),0);
+  };
+}
+function setMode(m){
+  tmode=tmode===m?false:m;$("#tbtn").classList.toggle("on",tmode==="add");$("#ebtn").classList.toggle("on",tmode==="edit");
+  pages.length&&show(cur);
+  if(tmode==="add")toast("Yeni metin koymak istediğiniz yere tıklayın");
+  if(tmode==="edit")toast("Değiştirmek istediğiniz yazıya tıklayın ve düzenleyin");
+}
+$("#tbtn").onclick=()=>setMode("add");
+$("#ebtn").onclick=()=>setMode("edit");
+function sample(cv,x,y,w,h){
+  const X=Math.max(0,Math.floor(x)),Y=Math.max(0,Math.floor(y)),W=Math.max(2,Math.min(cv.width-X,Math.ceil(w))),H=Math.max(2,Math.min(cv.height-Y,Math.ceil(h)));
+  const d=cv.getContext("2d").getImageData(X,Y,W,H).data;let sr=0,sg=0,sb=0,n=0;
+  const edge=(xx,yy)=>{const i=(yy*W+xx)*4;sr+=d[i];sg+=d[i+1];sb+=d[i+2];n++};
+  for(let xx=0;xx<W;xx++){edge(xx,0);edge(xx,H-1)}
+  for(let yy=0;yy<H;yy++){edge(0,yy);edge(W-1,yy)}
+  const bg=[Math.round(sr/n),Math.round(sg/n),Math.round(sb/n)];let best=0,ink=[0,0,0];
+  for(let i=0;i<d.length;i+=4){const q=Math.abs(d[i]-bg[0])+Math.abs(d[i+1]-bg[1])+Math.abs(d[i+2]-bg[2]);if(q>best){best=q;ink=[d[i],d[i+1],d[i+2]]}}
+  if(best<120)ink=(bg[0]+bg[1]+bg[2])/3>128?[0,0,0]:[255,255,255];
+  return{bg,ink};
+}
+async function overlay(p,pg,L,cv,scale){
+  if(((pg.rotate+p.rot)%360+360)%360!==0){toast("Metin düzenlemek için sayfa yönü 0° olmalı; sayfayı döndürün");return}
+  const vp=pg.getViewport({scale,rotation:0}),tc=await pg.getTextContent(),ratio=cv.width/vp.width;
+  if(!tc.items.some(i=>i.str&&i.str.trim()))toast("Bu sayfada düzenlenebilir metin yok (taranmış görüntü olabilir)");
+  tc.items.forEach((it,idx)=>{
+    if(!it.str||!it.str.trim())return;
+    const t=it.transform,fs=Math.hypot(t[2],t[3]);
+    if(Math.abs(t[1])>.01*fs||Math.abs(t[2])>.01*fs||fs<2)return;
+    const x=t[4],y=t[5],w=it.width;
+    const [a,b,c,d]=vp.convertToViewportRectangle([x,y-.2*fs,x+w,y+.9*fs]);
+    const left=Math.min(a,c),top=Math.min(b,d),W=Math.abs(c-a),H=Math.abs(d-b);
+    const e=document.createElement("div");e.className="ed";e.contentEditable="true";e.spellcheck=false;
+    e.style.cssText="left:"+left+"px;top:"+top+"px;min-width:"+W+"px;height:"+H+"px;line-height:"+H+"px;font-size:"+fs*scale+"px";
+    const st=p.ed[idx];
+    const apply=s=>{e.style.background="rgb("+s.bg+")";e.style.color="rgb("+s.ink+")"};
+    e.textContent=st?st.text:it.str;if(st)apply(st);
+    let smp=st?{bg:st.bg,ink:st.ink}:null;
+    e.onfocus=()=>{if(!smp)smp=sample(cv,left*ratio,top*ratio,W*ratio,H*ratio);apply(smp)};
+    e.onkeydown=ev=>{if(ev.key==="Enter"){ev.preventDefault();e.blur()}};
+    e.onblur=()=>{
+      const txt=e.textContent;
+      if(txt===it.str){delete p.ed[idx];e.style.background="";e.style.color=""}
+      else{p.ed[idx]={text:txt,orig:it.str,x,y,w,fs,bg:smp.bg,ink:smp.ink};result=null;apply(smp)}
+    };
+    L.appendChild(e);
+  });
+}
+window.addEventListener("resize",()=>{clearTimeout(window._rz);window._rz=setTimeout(()=>pages.length&&show(cur),250)});
+
+function textCanvas(t){
+  const S=3,c=document.createElement("canvas"),x=c.getContext("2d"),f=t.size*S+"px Arial, Helvetica, sans-serif";
+  x.font=f;const w=Math.ceil(x.measureText(t.text).width)+4,h=Math.ceil(t.size*S*1.25);
+  c.width=w;c.height=h;x.font=f;x.fillStyle=t.color||"#000";x.textBaseline="middle";x.fillText(t.text,2,h/2);return c;
+}
+async function build(){
+  const out=await PDFDocument.create();
+  for(const p of pages){
+    const [cp]=await out.copyPages(sources[p.s].lib,[p.i]);out.addPage(cp);
+    const r=((cp.getRotation().angle+p.rot)%360+360)%360;cp.setRotation(degrees(r));
+    const {width:w,height:h}=cp.getSize();
+    for(const e of Object.values(p.ed||{})){
+      cp.drawRectangle({x:e.x-1,y:e.y-.22*e.fs,width:e.w+2,height:1.15*e.fs,color:PDFLib.rgb(e.bg[0]/255,e.bg[1]/255,e.bg[2]/255)});
+      if(e.text.trim()){
+        const c=textCanvas({text:e.text,size:e.fs,color:"rgb("+e.ink+")"}),img=await out.embedPng(c.toDataURL("image/png"));
+        cp.drawImage(img,{x:e.x-.7,y:e.y+.35*e.fs-c.height/6,width:c.width/3,height:c.height/3});
+      }
+    }
+    for(const t of p.texts){
+      const c=textCanvas(t),img=await out.embedPng(c.toDataURL("image/png")),iw=c.width/3,ih=c.height/3;
+      const M={0:[t.fx*w,h-t.fy*h,0,-1],90:[t.fy*w,t.fx*h,1,0],180:[w-t.fx*w,t.fy*h,0,1],270:[w-t.fy*w,h-t.fx*h,-1,0]}[r];
+      cp.drawImage(img,{x:M[0]+ih*M[2],y:M[1]+ih*M[3],width:iw,height:ih,rotate:degrees(r)});
+    }
+  }
+  return await out.save();
+}
+async function saveFile(bytes,name){
+  try{
+    const url=URL.createObjectURL(new Blob([bytes],{type:"application/pdf"}));
+    const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);toast("Kaydedildi");
+  }catch(e){toast("İndirilemedi: "+(e.message||e))}
+}
+$("#sbtn").onclick=async()=>{
+  try{toast("Hazırlanıyor…");const b=await build();await saveFile(b,fname.replace(/\.pdf$/i,"")+"-duzenlendi.pdf")}catch(e){toast("Hata: "+e.message)}
+};
+$("#cbtn").onclick=()=>$("#panel").classList.toggle("show");
+$("#go").onclick=async()=>{
+  const lv=document.querySelector("input[name=lv]:checked").value,res=$("#res"),go=$("#go");
+  go.disabled=true;$("#dl").style.display="none";
+  try{
+    const base=await build();let out;
+    if(lv==="struct"){out=base}
+    else{
+      const cfg={high:[72,.5],mid:[110,.65],low:[150,.8]}[lv];
+      const pj=await pdfjsLib.getDocument({data:base.slice()}).promise,doc=await PDFDocument.create();
+      for(let n=1;n<=pj.numPages;n++){
+        res.textContent="Sayfa "+n+" / "+pj.numPages+" işleniyor…";
+        const pg=await pj.getPage(n),v1=pg.getViewport({scale:1}),v=pg.getViewport({scale:cfg[0]/72});
+        const c=document.createElement("canvas");c.width=Math.floor(v.width);c.height=Math.floor(v.height);
+        const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);
+        await pg.render({canvasContext:x,viewport:v}).promise;
+        const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",cfg[1]));
+        const im=await doc.embedJpg(new Uint8Array(await blob.arrayBuffer()));
+        doc.addPage([v1.width,v1.height]).drawImage(im,{x:0,y:0,width:v1.width,height:v1.height});
+      }
+      out=await doc.save();
+    }
+    result=out;const pct=Math.round((1-out.length/base.length)*100);
+    res.textContent=fmt(base.length)+" → "+fmt(out.length)+(pct>0?"  (%"+pct+" küçüldü)":"  (küçülmedi — başka bir düzey deneyin)");
+    $("#dl").style.display="inline-block";
+  }catch(e){res.textContent="Hata: "+e.message}
+  go.disabled=false;
+};
+$("#dl").onclick=()=>result&&saveFile(result,fname.replace(/\.pdf$/i,"")+"-sikistirilmis.pdf");
+</script>
+</body>
+</html>
